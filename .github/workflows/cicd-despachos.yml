@@ -1,0 +1,26 @@
+name: CI/CD Backend Despachos - Innovatech
+
+on:
+  push:
+    branches:
+      - deploy
+    paths:
+      - "back-Despachos_SpringBoot/**"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        run: |
+          docker build -t pauly2026/innovatech-despachos:latest ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+          docker push pauly2026/innovatech-despachos:latest
