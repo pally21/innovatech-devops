@@ -32,6 +32,7 @@ services:
       DB_NAME: innovatech
       DB_USERNAME: root
       DB_PASSWORD: admin123
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/innovatech?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true
     ports:
       - "8080:8080"
     depends_on:
@@ -52,6 +53,7 @@ services:
       DB_NAME: innovatech
       DB_USERNAME: root
       DB_PASSWORD: admin123
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/innovatech?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true
     ports:
       - "8081:8081"
     depends_on:

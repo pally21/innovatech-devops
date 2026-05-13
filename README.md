@@ -25,3 +25,4 @@ Se activa con push a la rama deploy → build → push Docker Hub
 ## Autores
 - [Tu nombre] - [RUT]
 - [Nombre compañero] - [RUT]
+# deploy
