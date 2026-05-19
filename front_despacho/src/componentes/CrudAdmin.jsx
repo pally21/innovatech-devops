@@ -7,7 +7,7 @@ import Reviews from "./Layouts/Reviews";
 export const CrudAdmin = () => {
   return (
     <>
-      <div className="grid grid-cols-[auto_1fr] min-h-screen bg-gray-50">
+      <div className="grid grid-cols-[auto_1fr] min-h-screen bg-indigo-50">
         <div className="col-span-1">
           {/* Columna 1: Navbar (ancho fijo) */}
           <Navbar />
