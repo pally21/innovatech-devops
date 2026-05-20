@@ -12,7 +12,7 @@ export const SearchBar = () => {
               type="text"
               className="bg-gray-50 border-2 border-gray-300 text-gray-900 text-sm rounded focus:ring-blue-300 focus:border-blue-300 block duration-500 w-[500px] h-[60px] p-2.5 outline-none"
             />
-            <button className="px-16 bg-teal-500/80 border rounded-xl font-bold hover:bg-teal-600 transition-all duration-500 text-white">
+            <button className="px-16 bg-white border rounded-xl font-bold hover:bg-gray-100 transition-all duration-500 text-gray-800">
               Buscar
             </button>
           </form>
