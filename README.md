@@ -27,3 +27,4 @@ Se activa con push a la rama deploy → build → push Docker Hub
 - [Nombre compañero] - [RUT]
 # deploy
 # trigger
+ 
