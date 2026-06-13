@@ -1,12 +1,10 @@
 name: CI/CD Backend Ventas - Innovatech
-
 on:
   push:
     branches:
-      - deploy
+      - main
     paths:
       - "back-Ventas_SpringBoot/**"
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -14,13 +12,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
 
-      - name: Build and push image
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push image to ECR
         run: |
-          docker build -t pauly2026/innovatech-ventas:latest ./back-Ventas_SpringBoot/Springboot-API-REST
-          docker push pauly2026/innovatech-ventas:latest
+          docker build -t 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-ventas:latest ./back-Ventas_SpringBoot/Springboot-API-REST
+          docker push 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-ventas:latest
+
+      - name: Deploy en EC2
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: 54.234.164.197
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 863069581230.dkr.ecr.us-east-1.amazonaws.com
+            docker pull 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-ventas:latest
+            docker stop ventas || true
+            docker rm ventas || true
+            docker run -d -p 8080:8080 --name ventas 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-ventas:latest
