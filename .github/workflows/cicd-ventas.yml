@@ -28,15 +28,5 @@ jobs:
           docker build -t 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-ventas:latest ./back-Ventas_SpringBoot/Springboot-API-REST
           docker push 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-ventas:latest
 
-      - name: Deploy en EC2
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: 54.234.164.197
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 863069581230.dkr.ecr.us-east-1.amazonaws.com
-            docker pull 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-ventas:latest
-            docker stop ventas || true
-            docker rm ventas || true
-            docker run -d -p 8080:8080 --name ventas 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-ventas:latest
+      - name: Notificar despliegue exitoso
+        run: echo "Imagen subida a ECR exitosamente."
