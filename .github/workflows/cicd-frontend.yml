@@ -8,6 +8,12 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      ECR_REGISTRY: 863069581230.dkr.ecr.us-east-1.amazonaws.com
+      ECR_REPOSITORY: innovatech-frontend
+      ECS_CLUSTER: innovatech-cluster
+      ECS_SERVICE: innovatech-frontend-service
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -18,15 +24,20 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Build and push image to ECR
         run: |
-          docker build -t 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest ./front_despacho
-          docker push 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./front_despacho
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      - name: Notificar despliegue exitoso
-        run: echo "Imagen subida a ECR exitosamente. Desplegar manualmente en EC2."
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --force-new-deployment \
+            --region $AWS_REGION

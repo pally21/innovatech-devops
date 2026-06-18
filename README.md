@@ -136,21 +136,21 @@ Cada microservicio tiene su propio workflow en `.github/workflows/`:
 
 ### Despliegue en ECS
 
-Tras una ejecución exitosa del pipeline, el despliegue en ECS se realiza:
+Tras una ejecución exitosa del build y push a ECR, el mismo workflow fuerza una
+nueva implementación del servicio ECS correspondiente:
 
 ```bash
-# 1. Descargar la nueva imagen en la instancia del clúster
-aws ecr get-login-password --region us-east-1 \
-  | docker login --username AWS --password-stdin 863069581230.dkr.ecr.us-east-1.amazonaws.com
-
-docker pull 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
-
-# 2. Forzar una nueva implementación del servicio ECS
-# (Servicios → innovatech-frontend-service → Actualizar servicio → Forzar nueva implementación)
+aws ecs update-service \
+  --cluster innovatech-cluster \
+  --service innovatech-frontend-service \
+  --force-new-deployment \
+  --region us-east-1
 ```
 
-ECS sustituye la tarea en ejecución por una nueva con la imagen actualizada,
-manteniendo el servicio disponible durante la actualización (rolling update).
+ECS sustituye la tarea en ejecución por una nueva con la imagen `latest`
+actualizada, manteniendo el servicio disponible durante la actualización
+(*rolling update*). El mismo patrón se aplica a `innovatech-ventas-service` e
+`innovatech-despachos-service`.
 
 ### Secrets configurados en GitHub
 
@@ -268,7 +268,7 @@ ssh -i keypair-innovatech-2.pem ec2-user@54.197.116.241
 | `ECS Deployment Circuit Breaker was triggered` | Conflictos de puertos y configuración incompatible en revisiones anteriores de la Task Definition. | Se ajustaron los mapeos de puertos (`hostPort: 0`, puertos dinámicos) y se forzó una nueva implementación tras corregir el JSON. |
 | `Error: The security token included in the request is expired` en GitHub Actions | Las credenciales temporales de AWS Academy expiran cada pocas horas. | Se actualizaron los secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN` en GitHub con las credenciales vigentes. |
 | `npm install` falla con `SIGBUS` en `@swc/core` | Error intermitente de recursos en el runner de GitHub Actions durante la compilación del frontend. | Se reintentó la ejecución del pipeline, completándose exitosamente. |
-| Frontend no se conectaba a los backends tras el despliegue en ECS | El código del frontend apuntaba a `localhost:8080` / `localhost:8081`. | Se actualizaron las URLs de las APIs en el código del frontend a la IP pública y puertos dinámicos asignados por ECS, y se reconstruyó la imagen vía pipeline. |
+| Frontend no se conectaba a los backends tras el despliegue en ECS | El código del frontend apuntaba a URLs absolutas con IP/puertos específicos. | Se cambiaron las llamadas React a rutas relativas (`/api/v1/...`) y Nginx enruta esas rutas hacia los backends desplegados en ECS. |
 
 ---
 
@@ -290,9 +290,9 @@ ejecuciones de los 3 pipelines (ver pestaña *Actions* del repositorio).
 - **Sin caché de dependencias:** cada ejecución vuelve a descargar las dependencias
   de Maven (`.m2`) y de npm (`node_modules`) desde cero, lo que aumenta
   innecesariamente el tiempo de build.
-- **Despliegue manual a EC2:** actualmente, tras el `docker push` a ECR, la
-  actualización del servicio ECS (`pull` + `forzar nueva implementación`) se realiza
-  manualmente. Esto rompe el flujo *build → push → deploy* totalmente automatizado.
+- **Despliegue automatizado a ECS:** tras el `docker push` a ECR, cada workflow
+  ejecuta `aws ecs update-service --force-new-deployment`, completando el flujo
+  *build → push → deploy* sin intervención manual.
 - **Credenciales de corta duración:** al usar credenciales temporales de AWS Academy
   (`AWS_SESSION_TOKEN`), los secrets deben actualizarse manualmente cada pocas horas,
   generando fallos evitables en el pipeline (`security token included in the request
@@ -310,9 +310,9 @@ ejecuciones de los 3 pipelines (ver pestaña *Actions* del repositorio).
 
 1. **Agregar caché de dependencias** con `actions/cache` para Maven (`~/.m2`) y npm
    (`node_modules`), reduciendo el tiempo de build de los backends.
-2. **Automatizar el paso de despliegue** agregando al workflow un paso final que
-   ejecute `aws ecs update-service --force-new-deployment` directamente desde
-   GitHub Actions (usando el rol IAM), eliminando el paso manual por SSH.
+2. **Agregar health checks post-despliegue** con `curl` a los endpoints públicos
+   para confirmar automáticamente que el frontend y las APIs responden después de
+   cada actualización.
 3. **Unificar los 3 workflows** en uno solo con *matrix strategy*, reduciendo
    duplicación de configuración entre frontend, ventas y despachos.
 4. **Migrar a OIDC (OpenID Connect)** entre GitHub Actions y AWS para evitar el uso
