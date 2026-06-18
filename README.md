@@ -334,3 +334,4 @@ aumentos de demanda, se recupere ante fallos sin intervención manual, y que cad
 cambio de código se refleje en el entorno productivo de forma rápida y consistente,
 sentando las bases para una futura adopción de prácticas de monitoreo y
 observabilidad más avanzadas (CloudWatch Logs, alarmas, dashboards).
+ 
