@@ -336,3 +336,4 @@ sentando las bases para una futura adopción de prácticas de monitoreo y
 observabilidad más avanzadas (CloudWatch Logs, alarmas, dashboards).
  
  
+ 
