@@ -78,11 +78,20 @@ continuo**, dejando la arquitectura lista para operar en un entorno productivo.
 | **VPC / Subred pública** | Red heredada de la fase EP1 (Lift & Shift), con Internet Gateway y NAT Gateway. |
 | **Clúster ECS** (`innovatech-cluster`) | Tipo de lanzamiento **EC2**. Agrupa la(s) instancia(s) que ejecutan el ECS Agent. |
 | **Instancia EC2** (`innovatech-server`) | Amazon Linux 2023, con Docker, AWS CLI y el agente ECS registrados al clúster. Usa el rol `LabRole` (IAM) para autenticarse contra ECR y ECS. |
-| **Task Definitions** | `innovatech-frontend-td`, `innovatech-ventas-td`, `innovatech-despachos-td`. Modo de red `bridge`, puertos dinámicos (`hostPort: 0`). |
+| **Task Definitions** | `innovatech-frontend-td` (puerto dinámico `hostPort: 0`), `innovatech-ventas-td` y `innovatech-despachos-td` (puertos **fijos** `hostPort: 8080`/`8081`). Modo de red `bridge`. |
+| **Networking interno (Nginx reverse proxy)** | El contenedor `frontend` sirve la SPA y reenvía `/api/v1/ventas` y `/api/v1/despachos` vía `proxy_pass` a `172.17.0.1:8080`/`:8081` — la IP de gateway de Docker, que siempre resuelve al host sin importar la IP pública de la EC2. El código React usa rutas **relativas** (`/api/v1/...`), no URLs absolutas. |
 | **Servicios ECS** | `innovatech-frontend-service`, `innovatech-ventas-service`, `innovatech-despachos-service`. Cada uno mantiene 1 tarea (réplica) corriendo y la reemplaza automáticamente si falla. |
 | **Amazon ECR** | Repositorios privados `innovatech-frontend`, `innovatech-ventas`, `innovatech-despachos`. |
 | **MySQL** | Contenedor persistente con volumen de datos, usado por ambos backends. |
 | **GitHub Actions** | 3 workflows independientes (uno por servicio), activados por cambios en su respectiva carpeta. |
+
+> **Decisión de diseño — comunicación Front → Back:** inicialmente el frontend
+> apuntaba a la IP pública y puerto dinámico de cada backend, lo que rompía cada
+> vez que cambiaba la sesión de AWS Academy. Se migró a **rutas relativas +
+> reverse proxy de Nginx**, fijando además los puertos de host de ventas (8080)
+> y despachos (8081) en sus Task Definitions. Así, el frontend funciona sin
+> reconstrucción sin importar qué IP pública tenga la EC2 ese día — el mismo
+> patrón que cumpliría un Application Load Balancer en un entorno productivo.
 
 ---
 
@@ -136,21 +145,21 @@ Cada microservicio tiene su propio workflow en `.github/workflows/`:
 
 ### Despliegue en ECS
 
-Tras una ejecución exitosa del build y push a ECR, el mismo workflow fuerza una
-nueva implementación del servicio ECS correspondiente:
+Tras una ejecución exitosa del pipeline, el despliegue en ECS se realiza:
 
 ```bash
-aws ecs update-service \
-  --cluster innovatech-cluster \
-  --service innovatech-frontend-service \
-  --force-new-deployment \
-  --region us-east-1
+# 1. Descargar la nueva imagen en la instancia del clúster
+aws ecr get-login-password --region us-east-1 \
+  | docker login --username AWS --password-stdin 863069581230.dkr.ecr.us-east-1.amazonaws.com
+
+docker pull 863069581230.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
+
+# 2. Forzar una nueva implementación del servicio ECS
+# (Servicios → innovatech-frontend-service → Actualizar servicio → Forzar nueva implementación)
 ```
 
-ECS sustituye la tarea en ejecución por una nueva con la imagen `latest`
-actualizada, manteniendo el servicio disponible durante la actualización
-(*rolling update*). El mismo patrón se aplica a `innovatech-ventas-service` e
-`innovatech-despachos-service`.
+ECS sustituye la tarea en ejecución por una nueva con la imagen actualizada,
+manteniendo el servicio disponible durante la actualización (rolling update).
 
 ### Secrets configurados en GitHub
 
@@ -268,7 +277,16 @@ ssh -i keypair-innovatech-2.pem ec2-user@54.197.116.241
 | `ECS Deployment Circuit Breaker was triggered` | Conflictos de puertos y configuración incompatible en revisiones anteriores de la Task Definition. | Se ajustaron los mapeos de puertos (`hostPort: 0`, puertos dinámicos) y se forzó una nueva implementación tras corregir el JSON. |
 | `Error: The security token included in the request is expired` en GitHub Actions | Las credenciales temporales de AWS Academy expiran cada pocas horas. | Se actualizaron los secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN` en GitHub con las credenciales vigentes. |
 | `npm install` falla con `SIGBUS` en `@swc/core` | Error intermitente de recursos en el runner de GitHub Actions durante la compilación del frontend. | Se reintentó la ejecución del pipeline, completándose exitosamente. |
-| Frontend no se conectaba a los backends tras el despliegue en ECS | El código del frontend apuntaba a URLs absolutas con IP/puertos específicos. | Se cambiaron las llamadas React a rutas relativas (`/api/v1/...`) y Nginx enruta esas rutas hacia los backends desplegados en ECS. |
+| Frontend no se conectaba a los backends tras el despliegue en ECS | El código del frontend apuntaba a `localhost:8080` / `localhost:8081`. | Se actualizaron las URLs de las APIs en el código del frontend a la IP pública y puertos dinámicos asignados por ECS, y se reconstruyó la imagen vía pipeline. |
+| Servicios ECS con `desiredCount: 1` pero `runningCount: 0` tras reiniciar la sesión de AWS Academy | Cada reinicio de sesión recrea la instancia EC2 con una IP nueva, pero el clúster ECS conserva el registro de la *Container Instance* anterior. Con hasta 5 registros acumulados (`AgentConnected: false`), ECS intentaba ubicar las tareas en instancias ya inexistentes y fallaba silenciosamente. | Se identificaron las instancias con `aws ecs describe-container-instances` (campo `agentConnected: false`) y se eliminaron con `aws ecs deregister-container-instance --force`, dejando solo la instancia activa real. Tras esto, `aws ecs update-service --force-new-deployment` desplegó las 3 tareas correctamente. |
+| El frontend mostraba tablas vacías aunque la API tenía datos | El código usaba URLs absolutas con la IP pública del día (`http://X.X.X.X:8080`), que dejaban de existir en cada reinicio de sesión de AWS Academy. | Se migró el frontend a **rutas relativas** (`/api/v1/...`) y se configuró **Nginx como reverse proxy** hacia `172.17.0.1:8080`/`:8081` (gateway de Docker), fijando además los puertos de host de los backends en sus Task Definitions. Verificado insertando un registro de prueba en MySQL y confirmando que aparece en la interfaz. |
+
+> **Nota operativa:** cada vez que se reinicia el Lab de AWS Academy (nueva IP pública,
+> nuevas credenciales), conviene verificar el número de *Container Instances*
+> registradas en el clúster antes de forzar un nuevo despliegue:
+> `aws ecs list-container-instances --cluster innovatech-cluster --region us-east-1`.
+> Si hay más de una con `agentConnected: false`, deben eliminarse para que ECS
+> pueda ubicar las tareas en la instancia vigente.
 
 ---
 
@@ -290,9 +308,9 @@ ejecuciones de los 3 pipelines (ver pestaña *Actions* del repositorio).
 - **Sin caché de dependencias:** cada ejecución vuelve a descargar las dependencias
   de Maven (`.m2`) y de npm (`node_modules`) desde cero, lo que aumenta
   innecesariamente el tiempo de build.
-- **Despliegue automatizado a ECS:** tras el `docker push` a ECR, cada workflow
-  ejecuta `aws ecs update-service --force-new-deployment`, completando el flujo
-  *build → push → deploy* sin intervención manual.
+- **Despliegue manual a EC2:** actualmente, tras el `docker push` a ECR, la
+  actualización del servicio ECS (`pull` + `forzar nueva implementación`) se realiza
+  manualmente. Esto rompe el flujo *build → push → deploy* totalmente automatizado.
 - **Credenciales de corta duración:** al usar credenciales temporales de AWS Academy
   (`AWS_SESSION_TOKEN`), los secrets deben actualizarse manualmente cada pocas horas,
   generando fallos evitables en el pipeline (`security token included in the request
@@ -310,9 +328,9 @@ ejecuciones de los 3 pipelines (ver pestaña *Actions* del repositorio).
 
 1. **Agregar caché de dependencias** con `actions/cache` para Maven (`~/.m2`) y npm
    (`node_modules`), reduciendo el tiempo de build de los backends.
-2. **Agregar health checks post-despliegue** con `curl` a los endpoints públicos
-   para confirmar automáticamente que el frontend y las APIs responden después de
-   cada actualización.
+2. **Automatizar el paso de despliegue** agregando al workflow un paso final que
+   ejecute `aws ecs update-service --force-new-deployment` directamente desde
+   GitHub Actions (usando el rol IAM), eliminando el paso manual por SSH.
 3. **Unificar los 3 workflows** en uno solo con *matrix strategy*, reduciendo
    duplicación de configuración entre frontend, ventas y despachos.
 4. **Migrar a OIDC (OpenID Connect)** entre GitHub Actions y AWS para evitar el uso
@@ -334,8 +352,3 @@ aumentos de demanda, se recupere ante fallos sin intervención manual, y que cad
 cambio de código se refleje en el entorno productivo de forma rápida y consistente,
 sentando las bases para una futura adopción de prácticas de monitoreo y
 observabilidad más avanzadas (CloudWatch Logs, alarmas, dashboards).
- 
- 
- 
-.
-.
