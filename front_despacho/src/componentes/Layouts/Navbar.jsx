@@ -1,6 +1,6 @@
 function Navbar() {
   return (
-    <nav className="rounded-xl w-[250px] min-h-[880px] bg-blue-600 text-white sticky top-0 p-4 m-4">
+    <nav className="rounded-xl w-[250px] min-h-[880px] bg-white text-gray-800 sticky top-0 p-4 m-4">
       {/* Logo o título */}
       <h2 className="text-xl font-bold mb-8">Despacho Dashboard</h2>
 
