@@ -18,15 +18,13 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: front_despacho/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
         working-directory: front_despacho
 
       - name: Run tests
-        run: npm test -- --watchAll=false --passWithNoTests
+        run: npm test
         working-directory: front_despacho
 
   build-and-deploy:
