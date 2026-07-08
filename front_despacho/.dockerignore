@@ -1,0 +1,35 @@
+# Dependencias locales
+node_modules/
+npm-debug.log*
+
+# Build anterior
+dist/
+build/
+
+# Variables de entorno locales
+.env
+.env.local
+.env.development
+.env.production
+
+# Control de versiones
+.git/
+.gitignore
+
+# Archivos de editor
+.idea/
+.vscode/
+*.swp
+*~
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+
+# Tests
+coverage/
+__tests__/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
