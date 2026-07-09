@@ -14,7 +14,7 @@ export const CardComponent = ({ title, description, buttonText, onClick }) => {
       <div className="flex justify-center">
         <button
           onClick={onClick}
-          className="inline-flex items-center justify-center w-80 h-10 px-3 py-2 text-base text-center text-gray-900 bg-yellow-400 border rounded-xl font-bold hover:bg-yellow-500 transition-all duration-500 "
+          className="inline-flex items-center justify-center w-80 h-10 px-3 py-2 text-base text-center text-gray-900 bg-green-500 border rounded-xl font-bold hover:bg-green-600 transition-all duration-500 "
         >
           {buttonText}
           <svg
